@@ -98,20 +98,20 @@ def write_accel(accel_value):
     except Exception as e:
         print(f"Error writing to accel register {accel_register}: {e}")
 
-def write_deaccel(deaccel_value):
-    deaccel_register = 340  # Zero-based address for 40339
+def write_decel(decel_value):
+    decel_register = 340  # Zero-based address for 40339
 
     try:
-        if 1 <= deaccel_value <= 30000:
-            high_word = (deaccel_value >> 16) & 0xFFFF
-            low_word = deaccel_value & 0xFFFF
-            client.write_registers(deaccel_register, [high_word, low_word])
-            print(f"Written accel value {deaccel_value} to registers 40339 and 40340 ")
+        if 1 <= decel_value <= 30000:
+            high_word = (decel_value >> 16) & 0xFFFF
+            low_word = decel_value & 0xFFFF
+            client.write_registers(decel_register, [high_word, low_word])
+            print(f"Written accel value {decel_value} to registers 40339 and 40340 ")
             time.sleep(0.5)
         else:
-            print(f"Acceleration value {deaccel_value} is out of the allowed range (1-30000)")
+            print(f"Acceleration value {decel_value} is out of the allowed range (1-30000)")
     except Exception as e:
-        print(f"Error writing to accel register {deaccel_register}: {e}")
+        print(f"Error writing to accel register {decel_register}: {e}")
 
 
 def read_register(register_address):
@@ -133,7 +133,7 @@ if connect_modbus():
     start_jogging()
     write_accel(100)
     write_speed(10000, run_time=10)
-    write_deaccel(100)
+    write_decel(100)
     stop_jogging()
     disable_driver()
 
