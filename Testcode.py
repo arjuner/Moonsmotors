@@ -82,18 +82,6 @@ def write_speed(speed_value, run_time=10):
     except Exception as e:
         print(f"Error writing to speed register {speed_register}: {e}")
 
-# Function to write acceleration values to register 40339
-# def write_accel(accel_value):
-#     accel_register = 338  # Zero-based address for 40339
-#     try:
-#         if 1 <= accel_value <= 30000:  # Ensure the value is within the valid range
-#             client.write_register(accel_register, accel_value)
-#             print(f"Written accel value {accel_value} to register 40339 (address {accel_register})")
-#             time.sleep(0.5)
-#         else:
-#             print(f"Acceleration value {accel_value} is out of the allowed range (1-30000)")
-#     except Exception as e:
-#         print(f"Error writing to accel register {accel_register}: {e}")
 
 def write_accel(accel_value):
     accel_register = 338  # Zero-based address for 40339
@@ -109,6 +97,21 @@ def write_accel(accel_value):
             print(f"Acceleration value {accel_value} is out of the allowed range (1-30000)")
     except Exception as e:
         print(f"Error writing to accel register {accel_register}: {e}")
+
+def write_deaccel(deaccel_value):
+    deaccel_register = 340  # Zero-based address for 40339
+
+    try:
+        if 1 <= deaccel_value <= 30000:
+            high_word = (deaccel_value >> 16) & 0xFFFF
+            low_word = deaccel_value & 0xFFFF
+            client.write_registers(deaccel_register, [high_word, low_word])
+            print(f"Written accel value {deaccel_value} to registers 40339 and 40340 ")
+            time.sleep(0.5)
+        else:
+            print(f"Acceleration value {deaccel_value} is out of the allowed range (1-30000)")
+    except Exception as e:
+        print(f"Error writing to accel register {deaccel_register}: {e}")
 
 
 def read_register(register_address):
@@ -128,12 +131,15 @@ def read_register(register_address):
 if connect_modbus():
     enable_driver()
     start_jogging()
-    # write_accel(30000)
-    write_speed(1000, run_time=10)
+    write_accel(100)
+    write_speed(10000, run_time=10)
+    write_deaccel(100)
     stop_jogging()
     disable_driver()
 
-    # read_register(40338)
+    # read_register(40336)
+    # read_register(40337)
+    # read_register(40294)
 
     # Close the connection
     client.close()
