@@ -40,7 +40,7 @@ def start_jogging():
     try:
         client.write_register(command_register, start_jogging_opcode)
         print("Jogging mode enabled.")
-        time.sleep(0.5)  # Short delay to observe jogging
+        time.sleep(0.1)  # Short delay to observe jogging
     except Exception as e:
         print(f"Error Starting jogging: {e}")
 
@@ -56,39 +56,60 @@ def stop_jogging():
     except Exception as e:
         print(f"Error stopping jogging: {e}")
 
-# Function to write speed values to register 40049 (Jog Speed Control)
-def write_speed(speed_value):
-    speed_register = 336  # Zero-based address for 40049
+
+def write_speed(speed_value, run_time=10):
+    speed_register = 342  # Zero-based address for 40343
+
     try:
-        client.write_register(speed_register, speed_value)
-        print(f"Written speed value {speed_value} to register {speed_register}")
-        time.sleep(0.5)
+        # Convert the 32-bit speed value to two 16-bit registers (high and low)
+        high_word = (speed_value >> 16) & 0xFFFF  # Extract high 16 bits
+        low_word = speed_value & 0xFFFF  # Extract low 16 bits
+
+        # Write the 32-bit value as two consecutive 16-bit registers
+        client.write_registers(speed_register, [high_word, low_word])
+
+        print(f"Motor running at speed value {speed_value}.")
+
+        # Run the motor for the specified time
+        time.sleep(run_time)
+
+        # Stop the motor by setting speed to 0
+        high_word = 0
+        low_word = 0
+        client.write_registers(speed_register, [high_word, low_word])
+
+        print("Motor stopped after 10 seconds.")
     except Exception as e:
         print(f"Error writing to speed register {speed_register}: {e}")
 
 # Function to write acceleration values to register 40339
+# def write_accel(accel_value):
+#     accel_register = 338  # Zero-based address for 40339
+#     try:
+#         if 1 <= accel_value <= 30000:  # Ensure the value is within the valid range
+#             client.write_register(accel_register, accel_value)
+#             print(f"Written accel value {accel_value} to register 40339 (address {accel_register})")
+#             time.sleep(0.5)
+#         else:
+#             print(f"Acceleration value {accel_value} is out of the allowed range (1-30000)")
+#     except Exception as e:
+#         print(f"Error writing to accel register {accel_register}: {e}")
+
 def write_accel(accel_value):
     accel_register = 338  # Zero-based address for 40339
+
     try:
-        if 1 <= accel_value <= 30000:  # Ensure the value is within the valid range
-            client.write_register(accel_register, accel_value)
-            print(f"Written accel value {accel_value} to register 40339 (address {accel_register})")
+        if 1 <= accel_value <= 30000:
+            high_word = (accel_value >> 16) & 0xFFFF
+            low_word = accel_value & 0xFFFF
+            client.write_registers(accel_register, [high_word, low_word])
+            print(f"Written accel value {accel_value} to registers 40339 and 40340 ")
             time.sleep(0.5)
         else:
             print(f"Acceleration value {accel_value} is out of the allowed range (1-30000)")
     except Exception as e:
         print(f"Error writing to accel register {accel_register}: {e}")
 
-
-# Function to run motor with jogging enabled/disabled for each speed
-def run_motor_variable_speed_with_jogging(speeds, delay_between_speeds=10):
-    for speed in speeds:
-        print(f"Enabling jogging for speed {speed}")
-        start_jogging()
-        write_speed(speed)
-        time.sleep(delay_between_speeds)
-        print(f"Stopping jogging for speed {speed}")
-        stop_jogging()
 
 def read_register(register_address):
     zero_based_address = register_address - 40001  # Convert to zero-based address
@@ -105,13 +126,14 @@ def read_register(register_address):
 
 # Example usage:
 if connect_modbus():
-    # enable_driver()
-    # write_accel(1234)
-    # variable_speeds = [1000]
-    # run_motor_variable_speed_with_jogging(variable_speeds)
-    # disable_driver()
+    enable_driver()
+    start_jogging()
+    # write_accel(30000)
+    write_speed(1000, run_time=10)
+    stop_jogging()
+    disable_driver()
 
-    read_register(40338)
+    # read_register(40338)
 
     # Close the connection
     client.close()
