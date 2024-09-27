@@ -132,7 +132,7 @@ if connect_modbus():
     enable_driver()
     start_jogging()
     write_accel(100)
-    write_speed(10000, run_time=10)
+    write_speed(10000, run_time=8)
     write_decel(100)
     stop_jogging()
     disable_driver()
