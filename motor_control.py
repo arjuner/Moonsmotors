@@ -10,13 +10,10 @@ AXIS_COMMAND_REGISTERS = {1: 124, 2: 1124}
 SPEED_REGISTERS = {1: 342, 2: 1342}
 ACCEL_REGISTERS = {1: 338, 2: 1338}
 DECEL_REGISTERS = {1: 340, 2: 1340}
-DEFAULT_SPEED = 5000
+ENCOD_REGISTERS = {1: 10, 2: 1010}
+DEFAULT_SPEED = 500
 DEFAULT_ACCEL = 100
 DEFAULT_DECEL = 100
-REGISTER_NAMES = {
-    9: "Encoder Position (EP)",
-    11: "Encoder Position (EP)",
-}
 
 # Function to connect Modbus
 def connect_modbus():
@@ -27,33 +24,20 @@ def connect_modbus():
         print("Modbus Connection Failed")
         return False
 
-# Function to read registers
-def read_registers(start_address, count):
+# Function to combine high and low register values
+def combine_registers(high, low):
+    return (high << 16) | low
+
+# Function to read registers as long
+def read_registers_as_long(client, start_address, count):
     try:
         result = client.read_holding_registers(start_address, count)
-        if result.isError():
-            print(f"Error reading registers starting at {start_address}.")
-        else:
-            return result.registers
+        if hasattr(result, 'registers') and len(result.registers) >= 2:
+            high, low = result.registers[:2]
+            return combine_registers(high, low)
     except Exception as e:
         print(f"Exception occurred while reading registers: {e}")
-        return None
-
-# Function to enable driver
-def enable_driver(axis):
-    try:
-        client.write_register(AXIS_COMMAND_REGISTERS[axis], JOGGING_OPCODES["enable"])
-        print(f"Driver enabled for Axis {axis}.")
-    except Exception as e:
-        print(f"Error enabling driver for Axis {axis}: {e}")
-
-# Function to disable driver
-def disable_driver(axis):
-    try:
-        client.write_register(AXIS_COMMAND_REGISTERS[axis], JOGGING_OPCODES["disable"])
-        print(f"Driver disabled for Axis {axis}.")
-    except Exception as e:
-        print(f"Error disabling driver for Axis {axis}: {e}")
+    return None
 
 # Function to start jogging
 def start_jogging(axis):
@@ -76,17 +60,22 @@ def write_speed(speed_value, axis):
         high_word = (speed_value >> 16) & 0xFFFF
         low_word = speed_value & 0xFFFF
         client.write_registers(speed_register, [high_word, low_word])
-        print(f"Motor {axis} running at speed value {speed_value}.")
     except Exception as e:
         print(f"Error writing to speed register for Axis {axis}: {e}")
 
-# Function to stop motor
-def stop_motor(axis):
+# Function to enable driver
+def enable_driver(axis):
     try:
-        client.write_registers(SPEED_REGISTERS[axis], [0, 0])
-        print(f"Motor {axis} stopped.")
+        client.write_register(AXIS_COMMAND_REGISTERS[axis], JOGGING_OPCODES["enable"])
     except Exception as e:
-        print(f"Error stopping motor for Axis {axis}: {e}")
+        print(f"Error enabling driver for Axis {axis}: {e}")
+
+# Function to disable driver
+def disable_driver(axis):
+    try:
+        client.write_register(AXIS_COMMAND_REGISTERS[axis], JOGGING_OPCODES["disable"])
+    except Exception as e:
+        print(f"Error disabling driver for Axis {axis}: {e}")
 
 # Function to write acceleration
 def write_accel(accel_value, axis):
@@ -96,7 +85,6 @@ def write_accel(accel_value, axis):
             high_word = (accel_value >> 16) & 0xFFFF
             low_word = accel_value & 0xFFFF
             client.write_registers(accel_register, [high_word, low_word])
-            print(f"Written accel value {accel_value} to Axis {axis}.")
         else:
             print(f"Acceleration value {accel_value} is out of the allowed range (1-30000).")
     except Exception as e:
@@ -110,48 +98,13 @@ def write_decel(decel_value, axis):
             high_word = (decel_value >> 16) & 0xFFFF
             low_word = decel_value & 0xFFFF
             client.write_registers(decel_register, [high_word, low_word])
-            print(f"Written decel value {decel_value} to Axis {axis}.")
         else:
             print(f"Deceleration value {decel_value} is out of the allowed range (1-30000).")
     except Exception as e:
         print(f"Error writing to decel register for Axis {axis}: {e}")
 
-
-def combine_registers(high, low):
-    return (high << 16) | low
-
-
-def read_registers_as_long(client, start_address, count):
-    try:
-        # Read the specified number of registers starting at `start_address`
-        result = client.read_holding_registers(start_address, count)
-
-        if result.isError():
-            print(f"Error in Modbus response: {result}")
-            return
-
-        if hasattr(result, 'registers'):
-            print(f"Reading registers {start_address} to {start_address + count - 1}:")
-            registers = result.registers
-            for i in range(0, len(registers), 2):
-                if i + 1 >= len(registers):  # Ensure we have a pair
-                    print(f"  Register {start_address + i}: Invalid pair")
-                    continue
-                high = registers[i]
-                low = registers[i + 1]
-                register_number = start_address + i
-                register_name = REGISTER_NAMES.get(register_number, f"Register {register_number}")
-
-                combined_value = combine_registers(high, low)
-                #print(f"  {register_name}: {combined_value} ({40000 + register_number})")
-                return combined_value
-        else:
-            print(f"Unexpected response format: {result}")
-    except Exception as e:
-        print(f"Exception occurred while reading registers: {e}")
-
 # Function to move motor
-def move_motor(direction, duration=0.1, accel_value=DEFAULT_ACCEL, decel_value=DEFAULT_DECEL):
+def move_motor(direction, duration=5, accel_value=DEFAULT_ACCEL, decel_value=DEFAULT_DECEL):
     if direction in ["right", "left", "front", "back"]:
         start_jogging(1)
         start_jogging(2)
@@ -176,8 +129,6 @@ def move_motor(direction, duration=0.1, accel_value=DEFAULT_ACCEL, decel_value=D
         time.sleep(duration)
         stop_jogging(1)
         stop_jogging(2)
-        stop_motor(1)
-        stop_motor(2)
     else:
         print("Invalid direction!")
 
@@ -187,16 +138,25 @@ if connect_modbus():
     enable_driver(2)
 
     try:
-        # Read registers 40011, 40012 (2 consecutive registers) and 40019
-        ref = read_registers_as_long(client, start_address=11, count=2)
         directions = ["front", "back", "right", "left"]
+
+        print("Starting motor movement in each direction with encoder monitoring...")
+
         for direction in directions:
             print(f"Moving {direction}...")
-            new_ref = read_registers_as_long(client, start_address=11, count=2)
-            print(f"diff {(new_ref-ref)}...")
-            ref = new_ref
+
+            # Read encoder values
+            ref_axis1 = read_registers_as_long(client, start_address=ENCOD_REGISTERS[1], count=2)
+            ref_axis2 = read_registers_as_long(client, start_address=ENCOD_REGISTERS[2], count=2)
+
+            if ref_axis1 is not None and ref_axis2 is not None:
+                print(f"Axis 1 Encoder Value: {ref_axis1}")
+                print(f"Axis 2 Encoder Value: {ref_axis2}")
+
             move_motor(direction)
             print(f"Stopped moving {direction}.")
+
+            time.sleep(1)  # Pause for 1 second after each movement
 
     finally:
         stop_jogging(1)
@@ -205,3 +165,4 @@ if connect_modbus():
         disable_driver(2)
         client.close()
         print("Motors stopped and connection closed.")
+
